@@ -11,13 +11,11 @@ import colorcet as cc
 def label_non_coding_regions(data, non_coding_regions):
     """
     Labels the 'type' column in the DataFrame as 'non-coding' if the mutation position is within non-coding regions.
-
-    Parameters:
-    data (pd.DataFrame): The input DataFrame with mutation positions.
-    non_coding_regions (list of tuples): List of tuples where each tuple defines the start and end of a non-coding region.
-
-    Returns:
-    pd.DataFrame: The DataFrame with an updated 'type' column.
+    Uses the 'POS_x' column to check if the mutation position is within the non-coding regions.
+    Usage: remove later on all non-coding mutations.
+    :param data: DataFrame containing patient mutation data.
+    :param non_coding_regions: List of tuples where each tuple defines the start and end of a non-coding region.
+    :return: DataFrame with an updated 'type' column.
     """
     # Create a list of non-coding positions
     non_coding = []
@@ -31,20 +29,15 @@ def label_non_coding_regions(data, non_coding_regions):
 
 def label_syn_non_syn_reversion(data):
     """
-    Labels the 'type' column in the DataFrame as 'non-synonymous', 'synonymous', or 'reversion' based on the values of the 'protein_type' and 'mutation_type' columns.
-
-    Parameters:
-    data (pd.DataFrame): The input DataFrame with 'protein_type' and 'mutation_type' columns.
-
-    Returns:
-    pd.DataFrame: The DataFrame with an updated 'type' column.
+    Labels the 'type' column in the DataFrame as 'non-synonymous', 'synonymous', or 'reversion'
+    based on the values in the 'protein_type' and 'mutation_type' columns of DataFrame.
+    :param data: DataFrame containing patient mutation data.
+    :return: DataFrame with an updated 'type' column.
     """
     types = []
-
     for idx, row in data.iterrows():
         protein = row['protein']
         mutation_type = row['mutation_type']
-
         if pd.notna(protein) and pd.notna(mutation_type):
             types.append('non-synonymous')
         elif pd.notna(protein) and pd.isna(mutation_type):
@@ -60,7 +53,9 @@ def label_syn_non_syn_reversion(data):
 
 def add_missing_timepoints(df, patient_mutations_dict):
     """
-    Add missing time points with frequency 0 for mutations present in the patient mutations dictionary.
+    Add missing time points with frequency 0 for mutations present in the patient-mutations dictionary.
+    Usage: 1) To deal with cases of 0 value not present in the plot because no mutation are present at that timepoint.
+    2) To add missing timepoints for relevant mutations and create a plot with continuous lines.
     :param df: DataFrame containing patient mutation data.
     :param patient_mutations_dict: Dictionary with patient names as keys and their mutations as values.
     :return: DataFrame with missing time points added.
@@ -77,7 +72,8 @@ def add_missing_timepoints(df, patient_mutations_dict):
             timepoints = list(timepoints)  # Make a copy
             timepoints.append('0')  # Add 0 to the list
 
-        print(timepoints)
+        print(timepoints) # Check that all timepoints for this patient are present
+
         for mutation in mutations:
             for timepoint in timepoints:
                 if mutation not in patient_data.loc[patient_data['timepoint'] == timepoint, 'mutation'].values:
@@ -90,13 +86,21 @@ def add_missing_timepoints(df, patient_mutations_dict):
                     mutated_df_list.append(pd.DataFrame(
                         {'patient_id': [patient], 'timepoint': [timepoint], 'mutation': [mutation],
                          'mutation_type': [mutation_type], 'protein': [protein], 'POS_x': [pos_x], 'final_freq': [0]}))
+
+     # If mutated_df_list is not empty, concatenate the list of DataFrames
     if mutated_df_list:
         return pd.concat([df] + mutated_df_list, ignore_index=True)
     else:
         return df
 
 def add_voc_to_df_from_metadata(df, path_to_metadata):
-
+    """
+    Adds the 'voc' column to the DataFrame based on the 'patient_id' column.
+    Usage: To further filter out suspected problematic mutations based on the 'voc' column.
+    :param df: DataFrame containing patient mutation data.
+    :param path_to_metadata: Path to the metadata CSV file containing the 'patient' and 'voc' columns.
+    :return: DataFrame with the 'voc' column added.
+    """
     metadata = pd.read_csv(path_to_metadata)
     # read only unique patients
     metadata = metadata.drop_duplicates(subset="patient")
@@ -105,7 +109,16 @@ def add_voc_to_df_from_metadata(df, path_to_metadata):
 
     return df
 
+#### Option 1: Filter out suspected problematic mutations by voc
 def filter_out_suspected_problematic_by_voc(df, report_df):
+    """
+    Filters out suspected problematic mutations based on the 'voc' column.
+    Usage: Uses the 'report_df' DataFrame to filter out mutations based on fit to value in 'voc' column.
+    :param df: DataFrame containing patient mutation data.
+    :param report_df: DataFrame containing the suspected problematic mutations categorized by 'voc'.
+    :return:    1) Filtered DataFrame (what's left) and
+                2) A DataFrame containing the filtered out mutations (what was filtered from original df).
+    """
     sus_mutations = {}
     filtered_out_df = pd.DataFrame()
     filtered_df = pd.DataFrame()
@@ -124,7 +137,16 @@ def filter_out_suspected_problematic_by_voc(df, report_df):
 
     return filtered_df, filtered_out_df
 
+#### Option 2: Filter out suspected problematic mutations by mutation (disregarding voc)
+# After checking all options, THIS OPTION IS PREFERRED OVER THE OTHERS
 def filter_out_suspected_problematic_by_mutation(df, report_df):
+    """
+    Filters out suspected problematic mutations based on the 'mutation' column, disregarding the 'voc' value.
+    :param df: DataFrame containing patient mutation data.
+    :param report_df: DataFrame containing the suspected problematic mutations categorized by 'voc'.
+    :return:    1) Filtered DataFrame (what's left) and
+                2) A DataFrame containing the filtered out mutations (what was filtered from original df).
+    """
 
     # Extract all suspected problematic mutations from the report_df
     sus_mutations = report_df['mutation'].tolist()
@@ -135,7 +157,18 @@ def filter_out_suspected_problematic_by_mutation(df, report_df):
 
     return filtered_df, filtered_out_df
 
+#### Option 3: Filter out suspected problematic mutations by voc
+# and then filter by all deletion and insertion mutation (disregarding voc)
 def filter_out_suspected_problematic_mutations_by_voc_and_indels(df, report_df):
+    """
+    Filters out suspected problematic mutations based on the 'voc' column and specific mutations (indels).
+    Usage: more promiscuous than filtering based on the 'voc' column
+    and more rigid than filtering by mutation type only. eventually gives the same results as filtering by mutation.
+    :param df: DataFrame containing patient mutation data.
+    :param report_df: DataFrame containing the suspected problematic mutations categorized by 'voc'.
+    :return:    1) Filtered DataFrame (what's left) and
+                2) A DataFrame containing the filtered out mutations (what was filtered from original df).
+    """
     sus_mutations = {}
     filtered_out_df = pd.DataFrame()
     filtered_df = pd.DataFrame()
@@ -168,8 +201,14 @@ def filter_out_suspected_problematic_mutations_by_voc_and_indels(df, report_df):
     return filtered_df, filtered_out_df
 
 def update_final_freq(csv_file_path, df_to_update):
-
-    # Read the Excel file into a DataFrame
+    """
+    Updates the 'final_freq' values in the DataFrame based on the values in the manual fix csv file.
+    Usage: Fix frequency drops of TRUE mutations (due to little disagreements between replicates).
+    :param csv_file_path: Path to the manual fix csv file.
+    :param df_to_update: DataFrame containing patient mutation data.
+    :return: DataFrame with updated 'final_freq' values.
+    """
+    # Read the CSV file into a DataFrame
     metadata_csv = pd.read_csv(csv_file_path)
 
     if df_to_update.empty:
@@ -183,8 +222,7 @@ def update_final_freq(csv_file_path, df_to_update):
             timepoint = row["timepoint"]
             fixed_freq = row["fixed_freq"]
 
-
-        # if patient, mutation, timepoint in df_to_update, update the final_freq value to the fixed_freq value
+        # if patient, mutation and timepoint combination present in df_to_update, update the final_freq value to the fixed_freq value
             mask = (df_to_update["patient_id"] == patient) & (df_to_update["mutation"] == mutation) & (df_to_update["timepoint"] == str(timepoint))
             matching_row = df_to_update[mask]
             if not matching_row.empty:
@@ -193,7 +231,14 @@ def update_final_freq(csv_file_path, df_to_update):
     return df_to_update
 
 def per_patient_relevant_mutation(df):
-
+    """
+    This function returns a dictionary with patient names as keys and their relevant mutations as values.
+    Usage: The "relevant mutations" are mutations that have a frequency > 0 at any timepoint.
+    For plotting purposes, we want to plot only the relevant mutations for each patient.
+    (for these mutations we will later on iterate to plot all available values for each patient:mutation).
+    :param df: DataFrame containing patient mutation data.
+    :return: Dictionary with patient names as keys and their relevant mutations as values.
+    """
     relevant_mutations_dict = {}
     patients = list(set(df["patient_id"]))
     for patient in patients:
@@ -211,8 +256,10 @@ def per_patient_relevant_mutation(df):
 
     return relevant_mutations_dict
 
-# Function to exclude specified mutations and timepoints
+
 def exclude_mutations(df, exclusion_list):
+# TODO: Check if this function is needed (most serenely not, but check if removing it is not breaking the flow)
+#  because we will not supply those timepoints to the article at all. IMPORTANT: EXCLUDE from get_final_df function.
     """
     This function filters the DataFrame based on the exclusion list and exclusion positions.
     :param df: DataFrame containing patient mutation data.
@@ -227,9 +274,8 @@ def exclude_mutations(df, exclusion_list):
     for patient_id, timepoints in exclusion_dict.items():
         df = df[~((df['patient_id'] == patient_id) & (df['timepoint'].astype(int).isin(timepoints)))]
 
-    # # Filter based on mutation positions
+    # Filter based on mutation positions (NOT needed when using filter_out_suspected_problematic_by_mutation)
     # df = df[~df['POS_x'].astype(int).isin(exclusion_positions)]
-
 
     return df
 
@@ -237,14 +283,22 @@ def exclude_mutations(df, exclusion_list):
 
 # Iterate over all patient_id directories
 def get_final_df(path, non_coding_regions, csv_file_path, path_to_metadata, report_df, exclusion_list):
-
-    # Initialize an empty DataFrame to store the final result
-    # final_dataframe = pd.DataFrame()
+    """
+    This function reads the CSV files from the specified path and processes the data.
+    Usage: to create a DataFrame with the final processed data ready for plotting mutations frequencies per patient, over time.
+    :param path: Path to the directory containing the patient_id folders.
+    :param non_coding_regions: List of tuples where each tuple defines the start and end of a non-coding region.
+    :param csv_file_path: Path to the manual fix csv file.
+    :param path_to_metadata:  Path to the metadata CSV file containing the 'patient' and its 'voc' columns.
+    :param report_df: DataFrame containing the suspected problematic mutations categorized by 'voc'.
+    :param exclusion_list: List of dictionaries with patient_id and timepoint keys (DROP AFTER CHECKING).
+    :return: DataFrame containing the final processed data.
+    """
     non_filtered_dfs_to_concat = []
     non_zeroes_dfs_to_concat = []
     filter_positions = []
-    for patient_id_folder in os.listdir(base_directory):
-        patient_id_path = os.path.join(base_directory, patient_id_folder)
+    for patient_id_folder in os.listdir(path):
+        patient_id_path = os.path.join(path, patient_id_folder)
         print(patient_id_path)
         # Check if it's a directory
         if os.path.isdir(patient_id_path):
@@ -305,8 +359,8 @@ def get_final_df(path, non_coding_regions, csv_file_path, path_to_metadata, repo
                         print("df_updated is empty. Skipping this iteration.")
                         continue
 
+                    # Exclude mutations based on the exclusion list (DROP AFTER CHECKING)
                     df_with_excluded_positions = exclude_mutations(df_updated, exclusion_list)
-
 
                     # Filter rows with values > 0
                     df_get_non_zero = df_with_excluded_positions.loc[(df_with_excluded_positions['final_freq'] > 0)]
@@ -331,10 +385,10 @@ def find_duplicate_values(d):
     """
     This function takes a dictionary with patient names as keys and their mutations as values and returns a dictionary
     with mutations that are present in more than one patient and their corresponding color.
+    Usage: To color mutations that are present in more than one patient with the same color when plotting.
     :param d: Dictionary with patient names as keys and their mutations as values.
     :return: Dictionary with mutations that are present in more than one patient and their corresponding color.
     """
-
     value_counts = {}
 
     for patient, mutation_list in d.items():
@@ -348,6 +402,7 @@ def find_duplicate_values(d):
     duplicates_only = {}
     duplicate_values = {}
     duplicates_color_index = 0
+
     for mutation, patient_list in value_counts.items():
         if len(patient_list) > 1:
             duplicate_values[mutation] = duplicates_colors[duplicates_color_index]
@@ -359,14 +414,18 @@ def find_duplicate_values(d):
 def create_passage_graph(df, patient_mutations_dict, duplicate_mutations):
     """
     Groups DataFrame by patient and creates a plot of frequencies over time for each mutation
-    present in their sequence. Because I had to decide which frequency of the two replicates I want to plot on a graph,
-    I chose to plot the lower mutation frequency between the two.
+    present in their sequence.
     :param df: A DataFrame grouped by patient.
     :param patient_mutations_dict: Dictionary with patient names as keys and their mutations as values.
+    :param duplicate_mutations: Dictionary with mutations that are present in more than one patient and their corresponding color.
     """
-    # df.loc[df['final_freq'] == -1, 'final_freq'] = 0
+    # Drop rows with NaN values in the 'final_freq' column
     df = df.dropna(subset=['final_freq'])
 
+    # Group the DataFrame by patient_id
+    grouped = df.groupby('patient_id')
+
+    # Argument to set a detailed font size for the plot
     SMALL_SIZE = 40
     MEDIUM_SIZE = 45
     BIGGER_SIZE = 40
@@ -380,15 +439,12 @@ def create_passage_graph(df, patient_mutations_dict, duplicate_mutations):
     plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
     plt.rc('figure', titlesize=MEDIUM_SIZE)  # fontsize of the figure title
 
-    grouped = df.groupby('patient_id')
-    # df.sort_values(by=['timepoint'])
-    # font = {'weight': 'normal', 'size': 30}
-    # plt.rc('font', **font)
+
     plt.rcParams["figure.figsize"] = 26, 15
     plotted_values = []
-    # Use 'glasbey_dark' colors from colorcet
-    colors = cc.glasbey_light
 
+    # Use 'glasbey_light' colors from colorcet for the non-duplicate mutations
+    colors = cc.glasbey_light
 
     # Define a dictionary mapping full protein names to abbreviations
     protein_abbreviations = {
@@ -413,15 +469,16 @@ def create_passage_graph(df, patient_mutations_dict, duplicate_mutations):
         per_mutation = patient_data.groupby('mutation')
         color_index = 0
 
-        solid_legend_elements = []
-        dashed_legend_elements = []
+        # Create separate legend elements for solid and dashed lines
+        solid_legend_elements = [] # Solid line legend elements are for non-synonymous mutations
+        dashed_legend_elements = [] # Dashed line legend elements are for synonymous mutations
 
 
         for (mutation, mutation_data) in per_mutation:
             # Filter mutations based on the dictionary
             if mutation not in patient_mutations_dict[patient]:
                 continue
-
+            # Set line width to 4 as default for all lines
             lw = 4
             mutation_data['timepoint'] = pd.to_numeric(mutation_data['timepoint'])
             sorted_mutation_data = mutation_data.sort_values('timepoint')  # Sort mutation data by timepoint
@@ -429,6 +486,7 @@ def create_passage_graph(df, patient_mutations_dict, duplicate_mutations):
             freq = np.ma.masked_invalid(sorted_mutation_data['final_freq'])
             time_points = sorted_mutation_data['timepoint'].astype(int).to_numpy()
 
+            #TODO: change that linestyle will be continous is mutation_type and protein are not null
             mutation_type = sorted_mutation_data['mutation_type'].iloc[0]  # Get mutation type for the first row
             linestyle = '-' if pd.notnull(mutation_type) else '--'  # Continuous line if mutation_type is not null, else dashed line
 
@@ -437,21 +495,7 @@ def create_passage_graph(df, patient_mutations_dict, duplicate_mutations):
             should_have_label = True
 
             # Define specific styles for certain mutations
-            if mutation in ['G23015C', 'G23012A', 'T23032G', 'T21990-TTA', 'A22893G']:
-                linestyle = '-'
-                color = 'black'
-                marker = 'o'
-                lw = 7
-
-            elif mutation == 'T21990-TTA':
-            # Change mutation label to 'S:'+'\u0394'+'144'
-                linestyle = '-'
-                color = 'black'
-                marker = 'o'
-                lw = 7
-
-
-            elif mutation == 'T23010C':
+            if mutation in ['G23015C', 'G23012A', 'T23032G', 'T21990-TTA', 'A22893G', 'T21990-TTA', 'T23010C']:
                 linestyle = '-'
                 color = 'black'
                 marker = 'o'
@@ -462,21 +506,10 @@ def create_passage_graph(df, patient_mutations_dict, duplicate_mutations):
                     color = duplicate_mutations[mutation]
                     marker = 'o'
 
-            # if mutation == 'G23015C' or mutation == 'T23010C' or mutation == 'G23012A' or mutation == 'T23032G' or mutation == 'T21990-TTA':
-            #     color = 'black'
-            #     marker = 'o'
-            #     # Make the line width thicker
-            #     lw = 8
-
-
-
-            # elif mutation == 'C15173A':  # Check if mutation is T23010C (S:V483A)
-            #     color = 'black'  # Assign a specific color for T23010C mutation
-            #     marker = 'o'
                 else:
                     if max_freq < 0.5:
                         color = colors[color_index] + '20'  # Fade color if max frequency < 0.5
-                        should_have_label = True  # Change to True if you want all the labels of the fade mutations to be present in the legend
+                        should_have_label = True  # Change to True if you want all the labels of the fade mutations to be present in the legend, change to False if you want a shorter legend
                     else:
                         color = colors[color_index]
                 marker = 'o'
@@ -507,12 +540,12 @@ def create_passage_graph(df, patient_mutations_dict, duplicate_mutations):
         combined_legend_elements = solid_legend_elements + dashed_legend_elements + [custom_solid_handle] + [
             custom_dashed_handle]
 
+        # Plot the legend
         plt.xticks(all_time_points, all_time_points)
         plt.yticks((np.arange(0, 1.2, step=0.2)), [0, 0.2, 0.4, 0.6, 0.8, 1])
         plt.xlabel('')
         plt.ylabel('')
         plt.title(f'{patient}', fontsize=TITLE_SIZE, weight='bold')
-        # plt.legend(handles=combined_legend_elements, bbox_to_anchor=(1.04, 1), loc="upper left", ncol=3))  # Change to ncol=3 (or more) if should_have_label = True
         plt.grid(True)
         plt.savefig(
             fr"Z:\home\volume1\natalie\projects\replicates_2023\plots\Frequency_over_time\iVar\13-08-2024\DPI_600_LONG_{patient}_frequency_over_time_TechnionResequencing_W_INDELS.png", bbox_inches="tight", dpi=600)
@@ -525,7 +558,7 @@ def create_passage_graph(df, patient_mutations_dict, duplicate_mutations):
         fig_legend.savefig(fr"Z:\home\volume1\natalie\projects\replicates_2023\plots\Frequency_over_time\iVar\13-08-2024\DPI_600_LONG_legend_{patient}_frequency_over_time_TechnionResequencing_W_INDELS.png", bbox_inches='tight', dpi=600)
         plt.close(fig_legend)
 
-        # Convert the list to a DataFrame and save to CSV
+        # Summary table - convert the list to a DataFrame and save to CSV
         columns = ['Time', 'Frequency', 'Mutation', 'Patient', 'Mutation_Nt']
         plotted_values_df = pd.DataFrame(plotted_values, columns=columns)
         plotted_values_df.to_csv(fr"Z:\home\volume1\natalie\projects\replicates_2023\plots\Frequency_over_time\iVar\13-08-2024\SUMMARY_of_mutations_plotted_W.csv", index=False)
@@ -533,17 +566,15 @@ def create_passage_graph(df, patient_mutations_dict, duplicate_mutations):
 
 ############################################## 5. Report Function
 def generate_report(df):
+#TODO: create a function that summarizes all the changes made to the original data
+
     """
-    Generates a summary report of the data processing steps.
-
-    Parameters:
-    df (pd.DataFrame): DataFrame containing the final processed data.
-
-    Returns:
-    None: Outputs a report.
+    This function generates a report based on the final DataFrame.
+    :param df:
+    :return:
     """
 
-############################################## 6. Main Function
+############################################## 6. Main Execution Function
 def main():
     # Specify the directory where your files are located
     base_directory = r"Z:\home\volume1\natalie\repositories\BN-SCRIPTS\Filter_Usecase\results\N1_OLD_reps_iVar_results_(0.01_100_50)_COMBINED_w_TechnionResequencing_W_INDELS"
@@ -554,12 +585,13 @@ def main():
         r"Z:\home\volume1\natalie\projects\replicates_2023\suspected_problematic_by_voc\minor_alleles_disregarding_replicates_w_indels_0.01_f_0.2_mutations_summary_0.2_sample_frac.tsv",
         sep='\t')
 
-    # Define the exclusion list
+    # Define the exclusion list (DROP AFTER CHECKING)
     exclusion_list = [
         {'patient_id': 'P5', 'timepoint': [27, 44]},
         {'patient_id': 'P4', 'timepoint': [13, 28]},
     ]
-    # Define the non-coding regions of the SARS-CoV-2 genome
+
+   # Define the non-coding regions of the SARS-CoV-2 genome
     non_coding_regions = [(1, 265 + 1), (29675, 29903 + 1)]
 
     non_zero, non_filtered = get_final_df(base_directory, non_coding_regions, csv_file_path, path_to_metadata, report_df, exclusion_list)
@@ -568,20 +600,15 @@ def main():
 
     # Adding missing time points with frequency 0 for relevant mutations
     df = add_missing_timepoints(non_filtered, relevant_mut_dict)
-    # Example usage:
+
+    # Find repeating mutations between patients and assign a corresponding color to them, for plotting
     duplicates = find_duplicate_values(relevant_mut_dict)
 
-
-
-    # Define the range of mutation positions to exclude
+    # Define the range of mutation positions to exclude (DROP AFTER CHECKING)
     # exclusion_positions = list(range(15168, 15174))
     # df = exclude_mutations(df, exclusion_list)
 
-
-    # Save the filtered DataFrame to a CSV file - for Shir
-    # output_file_path = fr"Z:\home\volume1\natalie\projects\replicates_2023\N2+P3\filtered_dataframe.csv"
-    # df.to_csv(output_file_path, index=False)
-    # print(f"Filtered DataFrame saved as {output_file_path}")
+    # Create a passage graph for each patient
     create_passage_graph(df, relevant_mut_dict, duplicates)
 
 if __name__ == "__main__":
