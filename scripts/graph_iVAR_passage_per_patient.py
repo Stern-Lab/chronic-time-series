@@ -54,8 +54,8 @@ def label_syn_non_syn_reversion(data):
 def add_missing_timepoints(df, patient_mutations_dict):
     """
     Add missing time points with frequency 0 for mutations present in the patient-mutations dictionary.
-    Usage: 1) To deal with cases of 0 value not present in the plot because no mutation are present at that timepoint.
-    2) To add missing timepoints for relevant mutations and create a plot with continuous lines.
+    Usage:  1) To deal with cases of 0 value not present in the plot because no mutation are present at that timepoint.
+            2) To add missing timepoints for relevant mutations and create a plot with continuous lines.
     :param df: DataFrame containing patient mutation data.
     :param patient_mutations_dict: Dictionary with patient names as keys and their mutations as values.
     :return: DataFrame with missing time points added.
