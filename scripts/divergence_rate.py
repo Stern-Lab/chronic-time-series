@@ -1,3 +1,5 @@
+############################################## 1. Import Libraries
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -7,8 +9,8 @@ from sklearn.linear_model import LinearRegression
 import statsmodels.api as sm
 import os
 
+############################################## 3. Data Processing Function (Main Function)
 
-##### Main Function #####
 # def get_final_df(path, report_df, non_coding_regions, mutation_percentage_non_synonymous, mutation_percentage_synonymous):
 #     """
 #     Get the final DataFrame with divergence rates for non-synonymous and synonymous mutations.
