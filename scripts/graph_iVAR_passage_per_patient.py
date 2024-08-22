@@ -147,7 +147,6 @@ def filter_out_suspected_problematic_by_mutation(df, report_df):
     :return:    1) Filtered DataFrame (what's left) and
                 2) A DataFrame containing the filtered out mutations (what was filtered from original df).
     """
-
     # Extract all suspected problematic mutations from the report_df
     sus_mutations = report_df['mutation'].tolist()
 
@@ -281,7 +280,6 @@ def exclude_mutations(df, exclusion_list):
 
 ############################################## 3. Data Processing Function (Main Function)
 
-# Iterate over all patient_id directories
 def get_final_df(path, non_coding_regions, csv_file_path, path_to_metadata, report_df, exclusion_list):
     """
     This function reads the CSV files from the specified path and processes the data.
