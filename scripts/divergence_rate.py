@@ -975,7 +975,7 @@ def main():
     # Define the number of possible non-synonymous and synonymous mutations
     genome_length_without_non_coding = 29264  # SARS-CoV-2 genome length without non-coding regions
     mutation_percentage_non_synonymous = 0.72
-    mutation_percentage_synonymous = 0.22
+    mutation_percentage_synonymous = 0.25
 
     # ->>>>> If running code for the first time, uncomment the following line to get the final DataFrame with divergence rates
 
